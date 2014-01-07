@@ -92,7 +92,7 @@ class GitrevisionDownloadController < ApplicationController
     Grit::Git.git_timeout = timeout
     Grit::Git.git_max_size = max_size
     project_name = @project.to_s.parameterize.to_s
-    if project_name.length == 0:
+    if project_name.length == 0
       project_name = "tarball"
     end
     begin
