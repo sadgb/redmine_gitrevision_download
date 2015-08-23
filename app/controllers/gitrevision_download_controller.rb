@@ -1,4 +1,3 @@
-require 'grit'
 
 class GitrevisionDownloadController < ApplicationController
   unloadable
@@ -31,7 +30,7 @@ class GitrevisionDownloadController < ApplicationController
       return
     end
 =end
-    
+
     if not params[:rev]
       rev = "master"
     else
@@ -39,21 +38,25 @@ class GitrevisionDownloadController < ApplicationController
     end
     # init repository
     begin
-      repo = Grit::Repo.new(repository.url, :is_bare => true)
-    rescue Grit::NoSuchPathError => e
-      flash.now[:error] = l(:repo_path_not_found)
-      render_404
-      return
-    rescue Grit::InvalidGitRepositoryError => e
-      flash.now[:error] = l(:repo_invalid)
-      render_404
-      return
+
+     repo = Gitlab::Git::Repository.new(repository.url)
+     # repo = Rugged::Repository.new(repository.url)
+
+      #repo = Grit::Repo.new(repository.url, :is_bare => true)
+    #rescue => e
+    #  flash.now[:error] = l(:repo_path_not_found)
+    #  render_404
+    #  return
+    #rescue Grit::InvalidGitRepositoryError => e
+    #  flash.now[:error] = l(:repo_invalid)
+    #  render_404
+    #  return
     rescue Exception => e
-      flash.now[:error] = l(:unknown_exception)
+      flash.now[:error] = e.message # l(:unknown_exception)
       render_404
       return
     end
-
+=begin
     # is the revision  branch?
     repo.heads.each do |x|
       if x.name == rev
@@ -77,37 +80,44 @@ class GitrevisionDownloadController < ApplicationController
       commit = rev
     end
 
-    commit_obj = repo.commits("#{commit.to_s}",1).first
-    
-    if commit_obj.nil?
+    commit_obj = nil
+    begin
+       commit_obj = repo.lookup(commit.to_s)
+   # commit_obj = repo.commits("#{commit.to_s}",1).first
+    rescue => e
+    #if commit_obj.nil?
       flash.now[:error] = l(:not_such_commit, :commit => commit)
       render_404
       return
     end
-
-    is_gzipped = Setting.plugin_redmine_gitrevision_download[:gzip] ? true : false
-    content = ""
-    timeout = Setting.plugin_redmine_gitrevision_download[:timeout].to_f
-    max_size = Setting.plugin_redmine_gitrevision_download[:max_size].to_i
-    Grit::Git.git_timeout = timeout
-    Grit::Git.git_max_size = max_size
+=end
+#    is_gzipped = Setting.plugin_redmine_gitrevision_download[:gzip] ? true : false
+#    content = ""
+#    timeout = Setting.plugin_redmine_gitrevision_download[:timeout].to_f
+#    max_size = Setting.plugin_redmine_gitrevision_download[:max_size].to_i
+    #Grit::Git.git_timeout = timeout
+    #Grit::Git.git_max_size = max_size
     project_name = @project.to_s.parameterize.to_s
     if project_name.length == 0
       project_name = "tarball"
     end
-    begin
-      content = repo.archive_tar(commit.to_s, "#{project_name}-#{rev}/")
-    rescue Grit::Git::GitTimeout => e
-      flash.now[:error] = l(:git_archive_timeout, :timeout => timeout, :bytes_read => e.bytes_read)
-      render_404
-      return
-    end
-    # Gzip content
-    if is_gzipped
-        content = ActiveSupport::Gzip.compress(content)
-    end
+   # begin
+   #   content = repo.archive_tar(commit.to_s, "#{project_name}-#{rev}/")
+   # rescue Grit::Git::GitTimeout => e
+   #   flash.now[:error] = l(:git_archive_timeout, :timeout => timeout, :bytes_read => e.bytes_read)
+   #   render_404
+   #   return
+   # end
+   # # Gzip content
+   # if is_gzipped
+   #     content = ActiveSupport::Gzip.compress(content)
+   # end
 
-    send_data(content, :filename => "#{project_name}-#{rev}.tar" + (is_gzipped ? ".gz" : ""), :type => is_gzipped ? 'application/x-gzip' : 'application/x-tar')
+    filename = repo.archive_repo('master', '/tmp')
+
+    is_gzipped = true
+
+    send_data(File.read(filename), :filename => "#{project_name}-#{rev}.tar" + (is_gzipped ? ".gz" : ""), :type => is_gzipped ? 'application/x-gzip' : 'application/x-tar')
   end
 
   private
